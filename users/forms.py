@@ -3,6 +3,12 @@ import re
 from wtforms import StringField, SubmitField, PasswordField
 from wtforms.validators import Required, Email, ValidationError, EqualTo, Length
 
+class LoginForm(FlaskForm):
+    username = StringField(validators=[Required(), Email()])
+    password = PasswordField(validators=[Required()])
+    pin_key=StringField(validators=[Required()])
+    submit = SubmitField()
+
 def character_check(form,field):
     excluded_chars = "*?!'^+%&/()=}][{$#@<>"
     for char in field.data:
@@ -17,7 +23,7 @@ class RegisterForm(FlaskForm):
     phone = StringField(validators=[Required()])
     password = PasswordField(validators=[Required(), Length(min=6, max=12, message='Password must be between 6 and 12 characters in length.')])
     confirm_password = PasswordField(validators=[Required(), EqualTo('password', message='Both password fields must be equal!')])
-    pin_key = StringField(validators=[Required(), Length(min=32, max=32, message='PIN Key must be exactly 32 characters in length.')])
+    pin_key = StringField(validators=[Required(),character_check, Length(min=32, max=32, message='PIN Key must be exactly 32 characters in length.')])
     submit = SubmitField(validators=[Required()])
 
     def validate_password(self, password):
