@@ -1,6 +1,7 @@
 # IMPORTS
 from flask import Blueprint, render_template, request, flash
 from app import db
+from lottery.views import user, draw_key
 from models import User, Draw
 
 # CONFIG
@@ -11,13 +12,13 @@ admin_blueprint = Blueprint('admin', __name__, template_folder='templates')
 # view admin homepage
 @admin_blueprint.route('/admin')
 def admin():
-    return render_template('admin.html', name="PLACEHOLDER FOR FIRSTNAME")
+    return render_template('admin.html', name=user.firstname)
 
 
 # view all registered users
 @admin_blueprint.route('/view_all_users', methods=['POST'])
 def view_all_users():
-    return render_template('admin.html', name="PLACEHOLDER FOR FIRSTNAME",
+    return render_template('admin.html', name=user.firstname,
                            current_users=User.query.filter_by(role='user').all())
 
 
@@ -46,7 +47,7 @@ def create_winning_draw():
     submitted_draw.strip()
 
     # create a new draw object with the form data.
-    new_winning_draw = Draw(user_id=0, draw=submitted_draw, win=True, round=round)
+    new_winning_draw = Draw(user_id=0, draw=submitted_draw, win=True, round=round, draw_key=draw_key)
 
     # add the new winning draw to the database
     db.session.add(new_winning_draw)
@@ -67,7 +68,7 @@ def view_winning_draw():
     # if a winning draw exists
     if current_winning_draw:
         # re-render admin page with current winning draw and lottery round
-        return render_template('admin.html', winning_draw=current_winning_draw, name="PLACEHOLDER FOR FIRSTNAME")
+        return render_template('admin.html', winning_draw=current_winning_draw, name=user.firstname)
 
     # if no winning draw exists, rerender admin page
     flash("No winning draw exists. Please add winning draw.")
@@ -126,7 +127,7 @@ def run_lottery():
             if len(results) == 0:
                 flash("No winners.")
 
-            return render_template('admin.html', results=results, name="PLACEHOLDER FOR FIRSTNAME")
+            return render_template('admin.html', results=results, name=user.firstname)
 
         flash("No user draws entered.")
         return admin()
@@ -143,4 +144,4 @@ def logs():
         content = f.read().splitlines()[-10:]
         content.reverse()
 
-    return render_template('admin.html', logs=content, name="PLACEHOLDER FOR FIRSTNAME")
+    return render_template('admin.html', logs=content, name=user.firstname)
