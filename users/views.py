@@ -7,12 +7,12 @@ from flask_login import current_user
 from flask_login import login_required
 from werkzeug.security import check_password_hash
 from app import db
-from lottery.views import user
 from models import User
 from datetime import datetime
 from flask_login import login_user, logout_user
 from users.forms import RegisterForm, LoginForm
 import pyotp
+from app import requires_roles
 
 # CONFIG
 users_blueprint = Blueprint('users', __name__, template_folder='templates')
@@ -24,6 +24,7 @@ users_blueprint = Blueprint('users', __name__, template_folder='templates')
 @users_blueprint.route('/logout')
 @login_required
 def logout():
+    logging.warning('SECURITY - Log out [%s, %s, %s]', current_user.id, current_user.firstname, request.remote_addr)
     logout_user()
     return redirect(url_for('index'))
 
@@ -56,6 +57,7 @@ def register():
         db.session.add(new_user)
         db.session.commit()
 
+        logging.warning('SECURITY - User registration [%s, %s]', form.firstname.data, request.remote_addr)
         # sends user to login page
         return redirect(url_for('users.login'))
     # if request method is GET or form not valid re-render signup page
@@ -78,7 +80,6 @@ def login():
         session['logins'] += 1
         user = User.query.filter_by(email=form.username.data).first()
         if not user or not check_password_hash(user.password, form.password.data):
-
             # if no match create appropriate error message based on login attempts
             if session['logins'] == 3:
                 flash('Number of incorrect logins exceeded')
@@ -98,7 +99,15 @@ def login():
             user.current_logged_in = datetime.now()
             db.session.add(user)
             db.session.commit()
-            return render_template('index.html', form=form)
+
+            logging.warning('SECURITY - Log in [%s, %s, %s]', current_user.id, current_user.firstname, request.remote_addr)
+
+            # direct to role appropriate page
+            if current_user.role == 'admin':
+                return redirect(url_for('admin.admin'))
+            else:
+                return redirect(url_for('users.profile'))
+
         else:
             flash("You have supplied an invalid 2FA token!", "danger")
     return render_template('login.html', form=form)
@@ -107,8 +116,9 @@ def login():
 # view user profile
 @users_blueprint.route('/profile')
 @login_required
+@requires_roles('user')
 def profile():
-    return render_template('profile.html', name=user.firstname)
+    return render_template('profile.html', name=current_user.firstname)
 
 
 # view user account
@@ -116,8 +126,8 @@ def profile():
 @login_required
 def account():
     return render_template('account.html',
-                           acc_no=user.id,
-                           email=user.email,
-                           firstname=user.firstname,
-                           lastname=user.lastname,
-                           phone=user.phone)
+                           acc_no=current_user.id,
+                           email=current_user.email,
+                           firstname=current_user.firstname,
+                           lastname=current_user.lastname,
+                           phone=current_user.phone)

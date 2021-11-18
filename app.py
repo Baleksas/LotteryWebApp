@@ -1,8 +1,27 @@
 # IMPORTS
 import socket
-from flask import Flask, render_template
+import logging
+from flask import Flask, render_template, request
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager
+from flask_login import LoginManager,current_user
+from functools import wraps
+from flask_talisman import Talisman
+
+
+# LOGGING
+class SecurityFilter(logging.Filter):
+    def filter(self, record):
+        return "SECURITY" in record.getMessage()
+
+fh = logging.FileHandler('lottery.log', 'a')
+fh.setLevel(logging.WARNING)
+fh.addFilter(SecurityFilter())
+formatter = logging.Formatter('%(asctime)s : %(message)s', '%m/%d/%Y %I:%M:%S %p')
+fh.setFormatter(formatter)
+
+logger = logging.getLogger('')
+logger.propagate = False
+logger.addHandler(fh)
 
 # CONFIG
 app = Flask(__name__)
@@ -13,6 +32,36 @@ app.config['SECRET_KEY'] = 'LongAndRandomSecretKey'
 # initialise database
 db = SQLAlchemy(app)
 
+# Security Headers
+csp = {
+    'default-src': [
+        '\'self\'',
+        'https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.2/css/bulma.min.css',
+        '\'unsafe-inline\''
+    ],
+    "script-src": [
+        '\'self\'',
+        '\'unsafe-inline\''
+    ]
+}
+talisman = Talisman(app, content_security_policy=csp, x_content_type_options=False)
+
+# FUNCTIONS
+def requires_roles(*roles):
+    def wrapper(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            if current_user.role not in roles:
+                logging.info('SECURITY - Unauthorised access attempt [%s, %s, %s, %s]',
+                             current_user.id,
+                             current_user.firstname,
+                             current_user.role,
+                             request.remote_addr)
+                # Redirect the user to an unauthorised notice!
+                return render_template('403.html')
+            return f(*args, **kwargs)
+        return wrapped
+    return wrapper
 
 # HOME PAGE VIEW
 @app.route('/')
@@ -23,7 +72,7 @@ def index():
 # ERROR PAGE VIEWS
 @app.errorhandler(400)
 def page_forbidden(error):
-     return render_template('403.html'), 400
+     return render_template('400.html'), 400
 
 @app.errorhandler(403)
 def page_forbidden(error):
@@ -39,7 +88,7 @@ def internal_error(error):
 
 @app.errorhandler(503)
 def internal_error(error):
-     return render_template('500.html'), 503
+     return render_template('503.html'), 503
 
 if __name__ == "__main__":
     my_host = "127.0.0.1"
@@ -70,4 +119,4 @@ if __name__ == "__main__":
     app.register_blueprint(admin_blueprint)
     app.register_blueprint(lottery_blueprint)
 
-    app.run(host=my_host, port=free_port, debug=True)
+    app.run(host=my_host, port=free_port, debug=True, ssl_context=('cert.pem', 'key.pem'))
